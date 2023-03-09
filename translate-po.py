@@ -16,82 +16,68 @@ msgfmt = os.path.join(python_dir, python_i18n_tools_dir, "msgfmt.py")
 source_language_code = 'en'
 support_langs = ['zh_TW', 'zh_CN']
 
-def build_msgstr_map(content):
-    msgstr_map = {}
-    lines = content.split('\n')
-    msgid = ''
-    msgstr = ''
-    for line in lines:
-        matches_msgid = re.match('^msgid "(.*)"$', line)
-        if matches_msgid:
-            msgid = matches_msgid.group(1)
-            continue
-        matches_msgstr = re.match('^msgstr "(.*)"$', line)
-        if matches_msgstr:
-            msgstr = matches_msgstr.group(1)
-            msgstr_map[msgid] = msgstr
-    return msgstr_map
-
-def update_po_from_pot(content, pot):
-    msgstr_map = build_msgstr_map(content)
+def update_po_from_pot(po_msg_map, pot):
     lines = pot.split('\n')
-    msgid = ''
-    existing = 0
-    not_found = 0
-    for i in range(len(lines)):
-        line = lines[i]
-        matches_msgid = re.match('^msgid "(.*)"$', line)
-        if matches_msgid:
-            msgid = matches_msgid.group(1)
-            continue
-        matches_msgstr = re.match('^(msgstr ").*("$)', line)
-        if matches_msgstr:
-            if msgid in msgstr_map:
-                existing += 1
-                lines[i] = f'{matches_msgstr.group(1)}{msgstr_map.get(msgid, "")}{matches_msgstr.group(2)}'
-            else:
-                not_found += 1
-    print(f'Added {not_found} new strings, removed {len(msgstr_map) - existing} strings')
-    return '\n'.join(lines)
 
-def parse_msg_ids(content):
-    contents = []
+    msgid = ""
+    state = None
+
+    data = []
+    for line in lines:
+        m = re.match(r'^"(.*)"$', line)
+        if m:
+            if state == "msgid":
+                msgid += m[1]
+            data.append(line)
+        elif line.startswith("msgid"):
+            m = re.match('^msgid "(.*)"$', line)
+            if m:
+                state = "msgid"
+                msgid = m[1]
+            data.append(line)
+        elif line.startswith("msgstr"):
+            if msgid in po_msg_map:
+                data.append(f"msgstr \"{po_msg_map[msgid]}\"")
+            else:
+                data.append(line)
+            state = "msgstr"
+        else:
+            data.append(line)
+
+    return '\n'.join(data)
+
+def parse_po(content):
+    data = {}
+
     lines = content.split("\n")
     msgid = ""
     msgstr = ""
+    state = None
     for line in lines:
-        matches_msgid = re.match(r'^msgid "(.*)"$', line)
-        if matches_msgid:
-            msgid = matches_msgid.group(1)
-            continue
-        matches_msgstr = re.match(r'^msgstr "(.*)"$', line)
-        if matches_msgstr:
-            msgstr = matches_msgstr.group(1)
-            if msgid and not msgstr:
-                contents.append(msgid)
-    return contents
+        m = re.match(r'^"(.*)"$', line)
+        if m:
+            if state == "msgid":
+                msgid += m[1]
+            elif state == "msgstr":
+                msgstr += m[1]
+        elif line.startswith("msgid"):
+            m = re.match(r'^msgid "(.*)"$', line)
+            if m:
+                msgid = m[1]
+                state = "msgid"
+        elif line.startswith("msgstr"):
+            m = re.match(r'^msgstr "(.*)"$', line)
+            if m:
+                msgstr = m[1]
+                state = "msgstr"
+        elif state == "msgstr":
+            state = None
+            data[msgid] = msgstr
+        
+    return data
 
 def sanitize_text(text):
     return text.replace("％s", "%s")
-
-def replace_msgstr(content, translations):
-    lines = content.split("\n")
-    msgid = ""
-    msgstr = ""
-    translations_index = 0
-    for i in range(len(lines)):
-        line = lines[i]
-        matches_msgid = re.match(r'^msgid "(.*)"$', line)
-        if matches_msgid:
-            msgid = matches_msgid.group(1)
-            continue
-        matches_msgstr = re.match(r'^msgstr "(.*)"$', line)
-        if matches_msgstr:
-            msgstr = matches_msgstr.group(1)
-            if msgid and not msgstr:
-                lines[i] = re.sub(r'^(msgstr ").*(")$', lambda m: m.group(1) + sanitize_text(translations[translations_index].translated_text) + m.group(2), line)
-                translations_index += 1
-    return "\n".join(lines)
 
 def get_locale_dir(locale):
     return os.path.join(args.locale_dir, locale, "LC_MESSAGES")
@@ -105,6 +91,9 @@ def translate_po():
     with open(pot_filename, 'r', encoding='utf-8') as pot_file:
         pot = pot_file.read()
 
+    pot_msg_map = parse_po(pot)
+    pot_msg_keys = set(pot_msg_map.keys())
+
     client = translate.TranslationServiceClient()
     parent = f"projects/{args.gc_project_id}/locations/{args.gc_location}"
     for lang in support_langs:
@@ -113,28 +102,46 @@ def translate_po():
         # mkdir if not exists
         os.makedirs(lang_dir, exist_ok=True)
         po_file_path = os.path.join(lang_dir, f'{args.textdomain}.po')
-        content = ""
+        content = pot
         if os.path.isfile(po_file_path):
             with open(po_file_path, 'r', encoding='utf-8') as f:
                 content = f.read()
-        content = update_po_from_pot(content, pot)
-        contents = parse_msg_ids(content)
-        print(f'{len(contents)} new strings for {lang}')
-        if not contents:
-            continue
-        
-        request = {
-            'parent': parent,
-            'contents': contents,
-            'mime_type': 'text/plain', # mime types: text/plain, text/html
-            'source_language_code': source_language_code,
-            'target_language_code': lang.replace("_", "-"),
-        }
 
-        response = client.translate_text(request)
-        translated = replace_msgstr(content, response.translations)
-        with open(po_file_path, 'w', encoding='utf-8') as f:
-            f.write(translated)
+        po_msg_map = parse_po(content)
+        po_msg_keys = set(po_msg_map.keys())
+        print(f'Added {len(pot_msg_keys - po_msg_keys)}, removed {len(po_msg_keys - pot_msg_keys)}')
+
+        content = update_po_from_pot(po_msg_map, pot)
+        po_msg_map = parse_po(content)
+        po_msg_keys = set(po_msg_map.keys())
+        
+        to_translate = []
+        for key, value in po_msg_map.items():
+            if not value:
+                to_translate.append(key)
+        
+        if len(to_translate) > 0:
+            request = {
+                'parent': parent,
+                'contents': to_translate,
+                'mime_type': 'text/plain', # mime types: text/plain, text/html
+                'source_language_code': source_language_code,
+                'target_language_code': lang.replace("_", "-"),
+            }
+
+            response = client.translate_text(request)
+
+            i = 0
+            for key, value in po_msg_map.items():
+                if not value:
+                    row = response.translations[i]
+                    po_msg_map[key] = sanitize_text(row.translated_text)
+                    i += 1
+
+            content = update_po_from_pot(po_msg_map, pot)
+
+            with open(po_file_path, 'w', encoding='utf-8') as f:
+                f.write(content)
 
 def generate_pot():
     if not os.path.isfile(pygettext):
