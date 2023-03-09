@@ -1,7 +1,16 @@
+import sys
+import subprocess
+import glob
 import os
 import argparse
 import re
 from google.cloud import translate
+
+python_dir = os.path.join(os.path.dirname(sys.executable), "../")
+python_i18n_tools_dir = "share/doc/python3.8/examples/Tools/i18n"
+
+pygettext = os.path.join(python_dir, python_i18n_tools_dir, "pygettext.py")
+msgfmt = os.path.join(python_dir, python_i18n_tools_dir, "msgfmt.py")
 
 # TODO: Set the variables before running the sample.
 source_language_code = 'en'
@@ -127,13 +136,30 @@ def translate_po():
         with open(po_file_path, 'w', encoding='utf-8') as f:
             f.write(translated)
 
+def generate_pot():
+    if not os.path.isfile(pygettext):
+        print(f"{pygettext} not exists. Please create the pot file manually")
+        return
+    py_files = glob.glob(os.path.join(args.src, '*.py'))
+    pot_filename = os.path.join(args.locale_dir, f'{args.textdomain}.pot')
+    subprocess.run([pygettext, '-d', args.textdomain, '-o', pot_filename] + py_files, capture_output=True, text=True)
+
+def generate_mo():
+    if not os.path.isfile(msgfmt):
+        print(f"{msgfmt} not exists. Please compile po files into mo format manually")
+        return
+    po_files = glob.glob(os.path.join(args.locale_dir, '**', '*.po'), recursive=True)
+    subprocess.run([msgfmt] + po_files, capture_output=True, text=True)
 
 def main():
+    generate_pot()
     translate_po()
+    generate_mo()
 
 parser = argparse.ArgumentParser(description="Translate po files")
 parser.add_argument("locale_dir", help="Path to locale directory")
 parser.add_argument("-d", "--textdomain", type=str, required=True, help="Text domain")
+parser.add_argument("--src", type=str, required=True, help="Python codebase dir")
 parser.add_argument("--gc_project_id", type=str, required=True, help="Google Cloud Project ID")
 parser.add_argument("--gc_location", type=str, required=True, help="Google Cloud Project Location")
 args = parser.parse_args()
