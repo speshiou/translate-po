@@ -106,12 +106,14 @@ def translate_po():
         if os.path.isfile(po_file_path):
             with open(po_file_path, 'r', encoding='utf-8') as f:
                 content = f.read()
-
-        po_msg_map = parse_po(content)
+                po_msg_map = parse_po(content)
+        else:
+            po_msg_map = {}
         po_msg_keys = set(po_msg_map.keys())
         print(f'Added {len(pot_msg_keys - po_msg_keys)}, removed {len(po_msg_keys - pot_msg_keys)}')
 
         content = update_po_from_pot(po_msg_map, pot)
+        
         po_msg_map = parse_po(content)
         po_msg_keys = set(po_msg_map.keys())
         
@@ -138,10 +140,10 @@ def translate_po():
                     po_msg_map[key] = sanitize_text(row.translated_text)
                     i += 1
 
-            content = update_po_from_pot(po_msg_map, pot)
+        content = update_po_from_pot(po_msg_map, pot)
 
-            with open(po_file_path, 'w', encoding='utf-8') as f:
-                f.write(content)
+        with open(po_file_path, 'w', encoding='utf-8') as f:
+            f.write(content)
 
 def generate_pot():
     if not args.src:
