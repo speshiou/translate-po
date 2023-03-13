@@ -144,12 +144,17 @@ def translate_po():
                 f.write(content)
 
 def generate_pot():
+    if not args.src:
+        print(f"--src not provided, skip generating pot file from codebase")
+        return
     if not os.path.isfile(pygettext):
         print(f"{pygettext} not exists. Please create the pot file manually")
         return
+    print("Parsing codebase to generate the pot file ...")
     py_files = glob.glob(os.path.join(args.src, '*.py'))
     pot_filename = os.path.join(args.locale_dir, f'{args.textdomain}.pot')
-    subprocess.run([pygettext, '-d', args.textdomain, '-o', pot_filename] + py_files, capture_output=True, text=True)
+    result = subprocess.run([pygettext, '-d', args.textdomain, '-o', pot_filename] + py_files, capture_output=True, text=True)
+    print(result.stderr)
 
 def generate_mo():
     if not os.path.isfile(msgfmt):
@@ -166,7 +171,7 @@ def main():
 parser = argparse.ArgumentParser(description="Translate po files")
 parser.add_argument("locale_dir", help="Path to locale directory")
 parser.add_argument("-d", "--textdomain", type=str, required=True, help="Text domain")
-parser.add_argument("--src", type=str, required=True, help="Python codebase dir")
+parser.add_argument("--src", type=str, help="Python codebase dir")
 parser.add_argument("--gc_project_id", type=str, required=True, help="Google Cloud Project ID")
 parser.add_argument("--gc_location", type=str, required=True, help="Google Cloud Project Location")
 args = parser.parse_args()
