@@ -36,7 +36,7 @@ def update_po_from_pot(po_msg_map, pot):
                 msgid = m[1]
             data.append(line)
         elif line.startswith("msgstr"):
-            if msgid in po_msg_map:
+            if msgid and msgid in po_msg_map:
                 data.append(f"msgstr \"{po_msg_map[msgid]}\"")
             else:
                 data.append(line)
@@ -159,11 +159,14 @@ def generate_pot():
     print(result.stderr)
 
 def generate_mo():
-    if not os.path.isfile(msgfmt):
-        print(f"{msgfmt} not exists. Please compile po files into mo format manually")
-        return
     po_files = glob.glob(os.path.join(args.locale_dir, '**', '*.po'), recursive=True)
-    subprocess.run([msgfmt] + po_files, capture_output=True, text=True)
+
+    if os.path.isfile(msgfmt):
+        subprocess.run([msgfmt] + po_files, capture_output=True, text=True)
+    else:
+        for po_file in po_files:
+            mo_file = os.path.splitext(po_file)[0] + ".mo"
+            subprocess.run([ "msgfmt", "-o", mo_file, po_file ], capture_output=True, text=True)  
 
 def main():
     generate_pot()
