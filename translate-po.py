@@ -13,8 +13,8 @@ pygettext = os.path.join(python_dir, python_i18n_tools_dir, "pygettext.py")
 msgfmt = os.path.join(python_dir, python_i18n_tools_dir, "msgfmt.py")
 
 # TODO: Set the variables before running the sample.
-source_language_code = 'en'
-support_langs = ['zh_TW', 'zh_CN']
+source_language_code = 'en_US'
+support_langs = [source_language_code, 'zh_TW', 'zh_CN', 'es_ES', 'fr_FR']
 
 def update_po_from_pot(po_msg_map, pot):
     lines = pot.split('\n')
@@ -122,7 +122,7 @@ def translate_po():
             if not value:
                 to_translate.append(key)
         
-        if len(to_translate) > 0:
+        if lang != source_language_code and len(to_translate) > 0:
             request = {
                 'parent': parent,
                 'contents': to_translate,
