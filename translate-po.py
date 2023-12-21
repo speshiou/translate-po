@@ -14,7 +14,18 @@ msgfmt = os.path.join(python_dir, python_i18n_tools_dir, "msgfmt.py")
 
 # TODO: Set the variables before running the sample.
 source_language_code = 'en_US'
-support_langs = [source_language_code, 'zh_TW', 'zh_CN', 'es_ES', 'fr_FR']
+support_langs = [
+    source_language_code, 
+    'zh_TW', 
+    'zh_CN', 
+    'es_ES', 
+    'fr_FR',
+    'ko_KR',
+    'ja_JP',
+    'id_ID',
+    'pt_BR',
+    'ru_RU',
+]
 
 def update_po_from_pot(po_msg_map, pot):
     lines = pot.split('\n')
@@ -45,6 +56,9 @@ def update_po_from_pot(po_msg_map, pot):
             data.append(line)
 
     return '\n'.join(data)
+
+def _pot_filename():
+    return os.path.join(args.src, args.locale_dir, f'{args.textdomain}.pot')
 
 def parse_po(content):
     data = {}
@@ -79,11 +93,13 @@ def parse_po(content):
 def sanitize_text(text):
     return text.replace("％s", "%s")
 
-def get_locale_dir(locale):
-    return os.path.join(args.locale_dir, locale, "LC_MESSAGES")
+def get_locale_dir(locale: str):
+    if "_" not in locale:
+        locale = f"{locale}_{locale.upper()}"
+    return os.path.join(args.src, args.locale_dir, locale, "LC_MESSAGES")
 
 def translate_po():
-    pot_filename = os.path.join(args.locale_dir, f'{args.textdomain}.pot')
+    pot_filename = _pot_filename()
     
     if not os.path.isfile(pot_filename):
         return f"{pot_filename} not exists"
@@ -146,7 +162,8 @@ def translate_po():
             f.write(content)
 
 def generate_pot():
-    if not args.src:
+    pot_filename = _pot_filename()
+    if not args.pot:
         print(f"--src not provided, skip generating pot file from codebase")
         return
     if not os.path.isfile(pygettext):
@@ -154,12 +171,11 @@ def generate_pot():
         return
     print("Parsing codebase to generate the pot file ...")
     py_files = glob.glob(os.path.join(args.src, '*.py'))
-    pot_filename = os.path.join(args.locale_dir, f'{args.textdomain}.pot')
     result = subprocess.run([pygettext, '-d', args.textdomain, '-o', pot_filename] + py_files, capture_output=True, text=True)
     print(result.stderr)
 
 def generate_mo():
-    po_files = glob.glob(os.path.join(args.locale_dir, '**', '*.po'), recursive=True)
+    po_files = glob.glob(os.path.join(args.src, args.locale_dir, '**', '*.po'), recursive=True)
 
     if os.path.isfile(msgfmt):
         subprocess.run([msgfmt] + po_files, capture_output=True, text=True)
@@ -174,11 +190,12 @@ def main():
     generate_mo()
 
 parser = argparse.ArgumentParser(description="Translate po files")
-parser.add_argument("locale_dir", help="Path to locale directory")
+parser.add_argument("src", type=str, help="Python codebase dir")
+parser.add_argument("--locale_dir", type=str, help="Path to locale directory")
 parser.add_argument("-d", "--textdomain", type=str, required=True, help="Text domain")
-parser.add_argument("--src", type=str, help="Python codebase dir")
 parser.add_argument("--gc_project_id", type=str, required=True, help="Google Cloud Project ID")
 parser.add_argument("--gc_location", type=str, required=True, help="Google Cloud Project Location")
+parser.add_argument("--pot")
 args = parser.parse_args()
 
 if __name__ == '__main__':
