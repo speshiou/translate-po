@@ -10,7 +10,6 @@ python_dir = os.path.join(os.path.dirname(sys.executable), "../")
 python_i18n_tools_dir = "share/doc/python3.8/examples/Tools/i18n"
 
 pygettext = os.path.join(python_dir, python_i18n_tools_dir, "pygettext.py")
-msgfmt = os.path.join(python_dir, python_i18n_tools_dir, "msgfmt.py")
 
 # TODO: Set the variables before running the sample.
 source_language_code = 'en_US'
@@ -177,12 +176,9 @@ def generate_pot():
 def generate_mo():
     po_files = glob.glob(os.path.join(args.src, args.locale_dir, '**', '*.po'), recursive=True)
 
-    if os.path.isfile(msgfmt):
-        subprocess.run([msgfmt] + po_files, capture_output=True, text=True)
-    else:
-        for po_file in po_files:
-            mo_file = os.path.splitext(po_file)[0] + ".mo"
-            subprocess.run([ "msgfmt", "-o", mo_file, po_file ], capture_output=True, text=True)  
+    for po_file in po_files:
+        mo_file = os.path.splitext(po_file)[0] + ".mo"
+        subprocess.run([ "msgfmt", "-o", mo_file, po_file ], capture_output=True, text=True)  
 
 def main():
     generate_pot()
