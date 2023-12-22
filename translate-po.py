@@ -6,11 +6,6 @@ import argparse
 import re
 from google.cloud import translate
 
-python_dir = os.path.join(os.path.dirname(sys.executable), "../")
-python_i18n_tools_dir = "share/doc/python3.8/examples/Tools/i18n"
-
-pygettext = os.path.join(python_dir, python_i18n_tools_dir, "pygettext.py")
-
 # TODO: Set the variables before running the sample.
 source_language_code = 'en_US'
 support_langs = [
@@ -163,14 +158,10 @@ def translate_po():
 def generate_pot():
     pot_filename = _pot_filename()
     if not args.pot:
-        print(f"--src not provided, skip generating pot file from codebase")
-        return
-    if not os.path.isfile(pygettext):
-        print(f"{pygettext} not exists. Please create the pot file manually")
+        print(f"skip generating pot file from codebase")
         return
     print("Parsing codebase to generate the pot file ...")
-    py_files = glob.glob(os.path.join(args.src, '*.py'))
-    result = subprocess.run([pygettext, '-d', args.textdomain, '-o', pot_filename] + py_files, capture_output=True, text=True)
+    result = subprocess.run(["pybabel", "extract", '-o', pot_filename, args.src], capture_output=True, text=True)
     print(result.stderr)
 
 def generate_mo():
@@ -178,7 +169,9 @@ def generate_mo():
 
     for po_file in po_files:
         mo_file = os.path.splitext(po_file)[0] + ".mo"
-        subprocess.run([ "msgfmt", "-o", mo_file, po_file ], capture_output=True, text=True)  
+        result = subprocess.run([ "msgfmt", "-o", mo_file, po_file ], capture_output=True, text=True)  
+        for errline in result.stderr.splitlines():
+            print(errline)
 
 def main():
     generate_pot()
